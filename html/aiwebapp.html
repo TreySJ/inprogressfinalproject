@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong Game</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #222;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      border: 2px solid #fff;
+      background-color: #000;
+    }
+    #startModal, #rulesModal, #winnerModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 10px;
+      color: white;
+      text-align: center;
+      display: none;
+    }
+    #startModal h2, #rulesModal h2, #winnerModal h2 {
+      margin-bottom: 20px;
+    }
+    #startModal button, #rulesModal button, #winnerModal button {
+      padding: 10px 20px;
+      background-color: #444;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    input {
+      margin: 5px;
+      padding: 5px;
+      font-size: 16px;
+    }
+    #rulesModal p {
+      font-size: 16px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="pongCanvas" width="800" height="400"></canvas>
+
+  <div id="startModal">
+    <h2>Pong Game</h2>
+    <p>Enter Player Names:</p>
+    <input type="text" id="player1Name" placeholder="Player 1 Name" />
+    <input type="text" id="player2Name" placeholder="Player 2 Name" />
+    <button onclick="startGame()">Start Game</button>
+  </div>
+
+  <div id="rulesModal">
+    <h2>Game Rules</h2>
+    <p>
+      1. Player 1 controls the left paddle using "W" (up) and "S" (down).<br>
+      2. Player 2 controls the right paddle using the arrow keys.<br>
+      3. The objective is to hit the ball past your opponent's paddle.<br>
+      4. First player to 5 points wins the game.<br>
+      5. Press "Start Game" when ready.
+    </p>
+    <button onclick="startActualGame()">Start Game</button>
+  </div>
+
+  <div id="winnerModal">
+    <h2>Winner: <span id="winnerName"></span></h2>
+    <button onclick="playAgain()">Play Again</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const paddleWidth = 10, paddleHeight = 100;
+    const ballRadius = 10;
+
+    let player1 = {
+      x: 0,
+      y: canvas.height / 2 - paddleHeight / 2,
+      width: paddleWidth,
+      height: paddleHeight,
+      color: "#FFF",
+      dy: 0
+    };
+
+    let player2 = {
+      x: canvas.width - paddleWidth,
+      y: canvas.height / 2 - paddleHeight / 2,
+      width: paddleWidth,
+      height: paddleHeight,
+      color: "#FFF",
+      dy: 0
+    };
+
+    let ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      radius: ballRadius,
+      dx: 4,
+      dy: 4,
+      color: "#FFF"
+    };
+
+    let player1Score = 0;
+    let player2Score = 0;
+    let gameRunning = false;
+    let player1Name = "Player 1";
+    let player2Name = "Player 2";
+
+    const ballHitSound = new Audio('https://www.soundjay.com/button/beep-07.wav');
+    const scoreSound = new Audio('https://www.soundjay.com/button/beep-01a.wav');
+
+    // Show the start modal
+    document.getElementById("startModal").style.display = "block";
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw paddles and ball
+      ctx.fillStyle = player1.color;
+      ctx.fillRect(player1.x, player1.y, player1.width, player1.height);
+      
+      ctx.fillStyle = player2.color;
+      ctx.fillRect(player2.x, player2.y, player2.width, player2.height);
+      
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = ball.color;
+      ctx.fill();
+      
+      ctx.font = "20px Arial";
+      ctx.fillText(`${player1Name}: ${player1Score}`, 50, 30);
+      ctx.fillText(`${player2Name}: ${player2Score}`, canvas.width - 150, 30);
+    }
+
+    function movePaddles() {
+      player1.y += player1.dy;
+      player2.y += player2.dy;
+
+      // Prevent paddles from going out of bounds
+      if (player1.y < 0) player1.y = 0;
+      if (player1.y + player1.height > canvas.height) player1.y = canvas.height - player1.height;
+      if (player2.y < 0) player2.y = 0;
+      if (player2.y + player2.height > canvas.height) player2.y = canvas.height - player2.height;
+    }
+
+    function moveBall() {
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+
+      if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+        ball.dy = -ball.dy;
+      }
+
+      // Ball-paddle collision
+      if (ball.x - ball.radius < player1.x + player1.width && ball.y > player1.y && ball.y < player1.y + player1.height) {
+        ball.dx = -ball.dx;
+        ball.x = player1.x + player1.width + ball.radius;
+        ballHitSound.play();  // Play sound when ball hits paddle
+        increaseBallSpeed();
+      }
+
+      if (ball.x + ball.radius > player2.x && ball.y > player2.y && ball.y < player2.y + player2.height) {
+        ball.dx = -ball.dx;
+        ball.x = player2.x - ball.radius;
+        ballHitSound.play();  // Play sound when ball hits paddle
+        increaseBallSpeed();
+      }
+
+      // Scoring conditions
+      if (ball.x - ball.radius < 0) {
+        player2Score++;
+        scoreSound.play();  // Play sound when player 2 scores
+        resetBall();
+      }
+
+      if (ball.x + ball.radius > canvas.width) {
+        player1Score++;
+        scoreSound.play();  // Play sound when player 1 scores
+        resetBall();
+      }
+
+      // Check if either player reached 5 points
+      if (player1Score === 5 || player2Score === 5) {
+        gameRunning = false;
+        setTimeout(() => showWinner(), 500);
+      }
+    }
+
+    function resetBall() {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      ball.dx = 4 * (Math.random() > 0.5 ? 1 : -1);
+      ball.dy = 4 * (Math.random() > 0.5 ? 1 : -1);
+    }
+
+    function increaseBallSpeed() {
+      ball.dx *= 1.1;
+      ball.dy *= 1.1;
+    }
+
+    function keyDownHandler(e) {
+      if (e.key == "ArrowUp") {
+        player2.dy = -6;
+      }
+      if (e.key == "ArrowDown") {
+        player2.dy = 6;
+      }
+      if (e.key == "w") {
+        player1.dy = -6;
+      }
+      if (e.key == "s") {
+        player1.dy = 6;
+      }
+    }
+
+    function keyUpHandler(e) {
+      if (e.key == "ArrowUp" || e.key == "ArrowDown") {
+        player2.dy = 0;
+      }
+      if (e.key == "w" || e.key == "s") {
+        player1.dy = 0;
+      }
+    }
+
+    function startGame() {
+      player1Name = document.getElementById("player1Name").value || "Player 1";
+      player2Name = document.getElementById("player2Name").value || "Player 2";
+      document.getElementById("startModal").style.display = "none";
+      document.getElementById("rulesModal").style.display = "block";
+    }
+
+    function startActualGame() {
+      document.getElementById("rulesModal").style.display = "none";
+      gameRunning = true;
+      player1Score = 0;
+      player2Score = 0;
+      gameLoop();
+    }
+
+    function showWinner() {
+      const winner = player1Score === 5 ? player1Name : player2Name;
+      document.getElementById("winnerName").innerText = winner;
+      document.getElementById("winnerModal").style.display = "block";
+    }
+
+    function playAgain() {
+      player1Score = 0;
+      player2Score = 0;
+      gameRunning = true;
+      document.getElementById("winnerModal").style.display = "none";
+      gameLoop();
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      draw();
+      movePaddles();
+      moveBall();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", keyDownHandler);
+    document.addEventListener("keyup", keyUpHandler);
+  </script>
+</body>
+</html>
